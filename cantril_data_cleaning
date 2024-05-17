@@ -25,3 +25,21 @@ done
 if [ "$invalid_format" = false ]; then
     echo "Thanks"
 fi
+
+# Function to check if the number of cells in each line matches the header
+function cells_Ck() {
+    local file=$1
+    local header=$(head -n 1 "$file")
+    local num_cells_header=$(echo -e "$header" | awk -F'\t' '{print NF}')
+
+    # Read each line after the header
+    tail -n +2 "$file" | while IFS= read -r line; do
+        num_cells=$(echo -e "$line" | awk -F'\t' '{print NF}')
+        if [ "$num_cells" -ne "$num_cells_header" ]; then
+            echo "Mismatch in number of cells in line: $line"
+        fi
+    done
+}
+
+
+cells_Ck "sample.tsv"
