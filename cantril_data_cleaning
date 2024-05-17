@@ -1,2 +1,25 @@
 #! /bin/bash
-echo "hello"
+# CITS 4407 Assignment 2
+# Author Zishan Luo
+# Student ID 22448064
+#!/bin/bash
+
+# Function to check if a file is tab-separated, read the tsv header.
+# Check if the input is three file or not.
+function check_tab_separated() {
+    if [ $# -ne 3 ]; then
+        echo "Error: Expected 3 input files, received $#"
+        exit 1
+    fi
+
+    for file in "$@"; do
+      # using head command -n 1 => read the first line(title of tsv) and check is
+      # a file if
+        header=$(head -n 1 "$file")
+        if [[ $header != *$'\t'* ]]; then
+            echo "Invalid file format in $file. File is not tab-separated."
+            exit 1
+        fi
+    done
+}
+check_tab_separated "$1" "$2" "$3"
