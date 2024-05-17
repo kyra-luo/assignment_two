@@ -5,41 +5,20 @@
 invalid_format=false
 # Function to check if a file is tab-separated, read the tsv header.
 # Check if the input is three file or not.
-
 if [ $# -ne 3 ]; then
     echo "Error: Expected 3 input files, received $#"
     exit 1
 fi
 
 for file in "$@"; do
-    # using head command -n 1 => read the first line(title of tsv) and check is
-    # a file if
-    header=$(head -n 1 "$file")
-    if [[ $header != *$'\t'* ]]; then
+    # Check if the file is tab-separated
+    if ! awk -F'\t' 'NR==1 {exit !($0 ~ /\t/)}' "$file"; then
         echo "Invalid file format in $file. File is not tab-separated."
-#        exit 1
-        invalid_format=true
+        continue
     fi
+
+    # Check if the number of cells in each line matched the header
+    num_cells_header=$(awk -F'\t' 'NR==1 {print NF; exit}' "$file")
+    awk -F'\t' -v header_cells="$num_cells_header" 'NR>1 {if (NF != header_cells) print "Mismatch in number of cells in line: " $0}' "$file"
 done
 
-if [ "$invalid_format" = false ]; then
-    echo "Thanks"
-fi
-
-# Function to check if the number of cells in each line matches the header
-function cells_Ck() {
-    local file=$1
-    local header=$(head -n 1 "$file")
-    local num_cells_header=$(echo -e "$header" | awk -F'\t' '{print NF}')
-
-    # Read each line after the header
-    tail -n +2 "$file" | while IFS= read -r line; do
-        num_cells=$(echo -e "$line" | awk -F'\t' '{print NF}')
-        if [ "$num_cells" -ne "$num_cells_header" ]; then
-            echo "Mismatch in number of cells in line: $line"
-        fi
-    done
-}
-
-
-cells_Ck "sample.tsv"
