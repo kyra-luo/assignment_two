@@ -1,0 +1,15 @@
+#! /bin/bash
+
+# Check if a file argument is provided
+if [ -z "$1" ]; then
+    echo "Usage: $0 <input_file.tsv> [<output_file.tsv>]"
+    exit 1
+fi
+# Set input and output file names
+input_file="$1"
+output_file="${2:-${input_file%.*}_cleaned.${input_file##*.}}"
+# Get the field numbers for the "Continent" column
+continent_field=$(head -n 1 "$input_file" | tr '\t' '\n' | grep -nx 'Continent' | cut -d':' -f1)
+# Remove the "Continent" column from the input file
+awk -F '\t' -v continent_field="$continent_field" 'BEGIN{OFS="\t"} {for (i=1; i<=NF; i++) {if (i != continent_field) printf "%s%s", $i, (i==NF?ORS:OFS)}}' "$input_file" > "$output_file"
+echo "Cleaned file saved as: $output_file"
