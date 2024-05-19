@@ -1,14 +1,79 @@
 #! /bin/bash
-# Check if a file argument is provided
-if [ -z "$1" ]; then
-echo "Usage: $0 <input_file.tsv> [<output_file.tsv>]"
-exit 1
+# CITS 4407 Assignment 2
+# Author Zishan Luo
+# Student ID 22448064
+
+invalid_format=false
+
+# Function to check if a file is tab-separated and read the TSV header.
+# Check if the input is three files or not.
+if [ $# -ne 3 ]; then
+    echo "Error: Expected 3 input files, received $#"
+    exit 1
 fi
-# Set input and output file names
-input_file="$1"
-output_file="${2:-${input_file%.*}_cleaned.${input_file##*.}}"
-# Get the field numbers for the "Continent" column
-continent_field=$(head -n 1 "$input_file" | tr '\t' '\n' | grep -nx 'Continent' | cut -d':' -f1)
-# Remove the "Continent" column from the input file
-awk -F '\t' -v continent_field="$continent_field" 'BEGIN{OFS="\t"} {$continent_field=""; print $0}' "$input_file" > "$output_file"
-echo "Cleaned file saved as: $output_file"
+
+# Function to check file format and cell consistency
+check_file() {
+    local file="$1"
+
+    # Check if the file is tab-separated
+    if ! awk -F'\t' 'NR==1 {exit !($0 ~ /\t/)}' "$file"; then
+        echo "Invalid file format in $file. File is not tab-separated."
+        invalid_format=true
+        return
+    fi
+
+    # Check if the number of cells in each line matched the header
+    num_cells_header=$(awk -F'\t' 'NR==1 {print NF; exit}' "$file")
+    if ! awk -F'\t' -v header_cells="$num_cells_header" 'NR>1 {if (NF != header_cells) {print "Mismatch in number of cells in line: " $0; exit 1}}' "$file"; then
+        invalid_format=true
+        return
+    fi
+}
+
+# Check all input files
+for file in "$@"; do
+    check_file "$file"
+done
+
+# Exit if any file is invalid
+if [ "$invalid_format" = true ]; then
+    exit 1
+fi
+
+# Process each file to remove "Continent" column, ignore rows without country code, and show the first 6 lines
+for file in "$@"; do
+    echo "Processing file: $file"
+    awk 'BEGIN {FS=OFS="\t"; line_count=0; code_col=0; continent_col=0}
+    NR==1 {
+      for (i=1; i<=NF; i++) {
+        if ($i == "Code") {
+          code_col = i
+        } else if ($i == "Continent") {
+          continent_col = i
+        }
+      }
+      print
+    }
+    NR>1 {
+      if (code_col == 0 || continent_col == 0) {
+        print "Error: Code or Continent column not found in file:", FILENAME > "/dev/stderr"
+        exit 1
+      }
+      if ($code_col != "" && line_count < 100) {
+        first_field=1
+        for (i=1; i<=NF; i++) {
+          if (i != continent_col) {
+            if (first_field) {
+              first_field=0
+            } else {
+              printf "%s", OFS
+            }
+            printf "%s", $i
+          }
+        }
+        printf "\n"
+        line_count++
+      }
+    }' "$file"
+done
