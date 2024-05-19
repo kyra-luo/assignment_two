@@ -41,23 +41,39 @@ if [ "$invalid_format" = true ]; then
     exit 1
 fi
 
-# Process each file to remove "Continent" column
+# Process each file to remove "Continent" column (if it exists), ignore rows without country code, and show the first 6 lines
 for file in "$@"; do
-    awk 'BEGIN {FS=OFS="\t"}
+    echo "Processing file: $file"
+    awk 'BEGIN {FS=OFS="\t"; line_count=0; code_col=0; continent_col=0}
     NR==1 {
-      col = 0
       for (i=1; i<=NF; i++) {
-        if ($i == "Continent") {
-          col = i
-          break
+        if ($i == "Code") {
+          code_col = i
+        } else if ($i == "Continent") {
+          continent_col = i
         }
       }
+      print
     }
-    {
-      for (i=1; i<=NF; i++) {
-        if (i != col) {
-          printf "%s%s", $i, (i == NF ? ORS : OFS)
+    NR>1 {
+      if (code_col == 0) {
+        print "Error: Code column not found in file:", FILENAME > "/dev/stderr"
+        exit 1
+      }
+      if ($code_col != "" && line_count < 100) {
+        first_field=1
+        for (i=1; i<=NF; i++) {
+          if (i != continent_col && $i != "") {
+            if (first_field) {
+              first_field=0
+            } else {
+              printf "%s", OFS
+            }
+            printf "%s", $i
+          }
         }
+        printf "\n"
+        line_count++
       }
     }' "$file"
 done
