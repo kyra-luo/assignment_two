@@ -1,29 +1,29 @@
-#!/bin/bash
+#! /bin/bash
 # CITS 4407 Assignment 2
 # Author Zishan Luo
 # Student ID 22448064
 
+
 invalid_format=false
 
-# Function to check if a file is tab-separated and read the TSV header.
 # Check if the input is three files or not.
 if [ $# -ne 3 ]; then
     echo "Error: Expected 3 input files, received $#"
     exit 1
 fi
 
-# Function to check file format and cell consistency
+# Function to check if a file is tab-separated and read the TSV header.
 check_file() {
     local file="$1"
 
     # Check if the file is tab-separated
     if ! awk -F'\t' 'NR==1 {exit !($0 ~ /\t/)}' "$file"; then
-        echo "Invalid file format in $file. File is not tab-separated."
+        echo "Invalid file format in $file. File is not tab-separated, please check your input file"
         invalid_format=true
         return
     fi
 
-    # Check if the number of cells in each line matched the header
+    # Check if the number of cells in each line matches the header
     num_cells_header=$(awk -F'\t' 'NR==1 {print NF; exit}' "$file")
     if ! awk -F'\t' -v header_cells="$num_cells_header" 'NR>1 {if (NF != header_cells) {print "Mismatch in number of cells in line: " $0; exit 1}}' "$file"; then
         invalid_format=true
@@ -41,39 +41,72 @@ if [ "$invalid_format" = true ]; then
     exit 1
 fi
 
-# Process each file to remove "Continent" column (if it exists), ignore rows without country code, and show the first 6 lines
-for file in "$@"; do
-    echo "Processing file: $file"
-    awk 'BEGIN {FS=OFS="\t"; line_count=0; code_col=0; continent_col=0}
-    NR==1 {
-      for (i=1; i<=NF; i++) {
-        if ($i == "Code") {
-          code_col = i
-        } else if ($i == "Continent") {
-          continent_col = i
-        }
-      }
-      print
-    }
-    NR>1 {
-      if (code_col == 0) {
-        print "Error: Code column not found in file:", FILENAME > "/dev/stderr"
-        exit 1
-      }
-      if ($code_col != "" && line_count < 100) {
-        first_field=1
-        for (i=1; i<=NF; i++) {
-          if (i != continent_col && $i != "") {
-            if (first_field) {
-              first_field=0
-            } else {
-              printf "%s", OFS
+# Temporary files to store intermediate data
+tmp_gdp=$(mktemp)
+tmp_population=$(mktemp)
+tmp_homicide=$(mktemp)
+tmp_life=$(mktemp)
+tmp_cantril=$(mktemp)
+
+# Function to read data from a file and store in temporary files
+read_data() {
+    local file=$1
+    local data_type=$2
+
+    awk -F'\t' -v type="$data_type" -v gdp_file="$tmp_gdp" -v pop_file="$tmp_population" \
+        -v hom_file="$tmp_homicide" -v life_file="$tmp_life" -v can_file="$tmp_cantril" 'NR>1 {
+        key = $1 "\t" $2 "\t" $3  # Entity/Country, Code, and Year
+        year = $3
+        if (year >= 2011 && year <= 2021) {
+            if (type == "GDP") {
+                print key "\t" $4 >> gdp_file
+            } else if (type == "Population") {
+                print key "\t" $4 >> pop_file
+            } else if (type == "Homicide") {
+                print key "\t" $4 >> hom_file
+            } else if (type == "Life") {
+                print key "\t" $4 >> life_file
+            } else if (type == "Cantril") {
+                print key "\t" $4 >> can_file
             }
-            printf "%s", $i
-          }
         }
-        printf "\n"
-        line_count++
-      }
     }' "$file"
+}
+
+# Process each file based on assumed file type
+for file in "$@"; do
+    if grep -q "GDP per capita" "$file"; then
+        read_data "$file" "GDP"
+    elif grep -q "Population" "$file"; then
+        read_data "$file" "Population"
+    elif grep -q "Homicide rate" "$file"; then
+        read_data "$file" "Homicide"
+    elif grep -q "Life Expectancy" "$file"; then
+        read_data "$file" "Life"
+    elif grep -q "Cantril Ladder score" "$file"; then
+        read_data "$file" "Cantril"
+    fi
 done
+
+# Output the combined data to stdout
+echo -e "Entity/Country\tCode\tYear\tGDP per capita\tPopulation\tHomicide Rate\tLife Expectancy\tCantril Ladder score"
+
+awk -F'\t' 'NR==FNR {gdp[$1"\t"$2"\t"$3] = $4; next}
+            FNR==NR+1 {population[$1"\t"$2"\t"$3] = $4; next}
+            FNR==NR+1+NR {homicide[$1"\t"$2"\t"$3] = $4; next}
+            FNR==NR+1+NR+NR {life[$1"\t"$2"\t"$3] = $4; next}
+            {cantril[$1"\t"$2"\t"$3] = $4}
+            END {
+                count = 0
+                for (key in gdp) {
+                    if (count < 100) {
+                        print key "\t" gdp[key] "\t" population[key] "\t" homicide[key] "\t" life[key] "\t" cantril[key]
+                        count++
+                    } else {
+                        break
+                    }
+                }
+            }' "$tmp_gdp" "$tmp_population" "$tmp_homicide" "$tmp_life" "$tmp_cantril"
+
+# Clean up temporary files
+rm -f "$tmp_gdp" "$tmp_population" "$tmp_homicide" "$tmp_life" "$tmp_cantril"
