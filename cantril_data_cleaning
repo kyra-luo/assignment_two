@@ -3,6 +3,10 @@
 # Author Zishan Luo
 # Student ID 22448064
 
+# init the path for storing the data path
+gdp_path=''
+life_path=''
+homicide_path=''
 
 invalid_format=false
 
@@ -34,7 +38,7 @@ check_file() {
     fi
 }
 
-# Check all input files
+# Call function for checking all input files
 for file in "$@"; do
     check_file "$file"
 done
@@ -44,28 +48,54 @@ if [ "$invalid_format" = true ]; then
     exit 1
 fi
 
+# function for clean the file.
+function clean_data() {
+    local filename=$1;
 
-for file in "$@"; do
-    awk 'BEGIN {FS=OFS="\t"}
-    NR==1 {
-      year_col = 0
-      continent_col = 0
-      for (i=1; i<=NF; i++) {
-        if ($i == "Year") {
-          year_col = i;
-        } else if ($i == "Continent") {
-          continent_col = i;
-        }
-      }
-      print $0
-    }
-    NR > 1 {
-      if ($year_col >= 2011 && $year_col <= 2021) {
-        for (i=1; i<=NF; i++) {
-          if (i != continent_col) {
-            printf "%s%s", $i, (i == NF ? ORS : OFS)
-          }
-        }
-      }
-    }' "$file"
-done
+    # Search keyword at first line, find the target column.
+    local fields_expected=7;
+    local is_gdp=$(awk -F '\t' 'NR==1 && /GDP/ {print 1} NR==1 && !/GDP/ {print 0}' ${filename});
+    local is_life=$(awk -F '\t' 'NR==1 && /Life/ {print 1} NR==1 && !/Life/ {print 0}' ${filename});
+    local is_homicide=$(awk -F '\t' 'NR==1 && /Homicide/ {print 1} NR==1 && !/Homicide/ {print 0}' ${filename});
+
+    # set file path
+    if [ $is_gdp == 1 ]; then
+        gdp_path=$filename;
+    elif [ $is_homicide == 1 ]; then
+        homicide_path=$filename;
+        fields_expected=4;
+    elif [ $is_life == 1 ]; then
+        life_path=$filename;
+    fi
+
+    local tmpfile=$(mktemp);
+    # remvoe Continent field
+    if [ $is_homicide != 1 ]; then
+        awk -F '\t' '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6}' $filename > $tmpfile
+        cat $tmpfile > $filename
+    fi
+
+    # remove rows that have invalid year
+    awk -F '\t' 'NR==1 || ($3 >= 2011 && $3 <= 2021)' $filename > $tmpfile
+    cat $tmpfile > $filename
+
+    # remove rows that have empty Code field
+    awk -F '\t' '$2 ~ /^\s*$/ {next} 1' $filename > $tmpfile
+    cat $tmpfile > $filename
+
+    # add a column for join
+    if [ $is_gdp == 1 ]; then
+        awk -F '\t' '{print $1"_"$2"_"$3"\t"$1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6}' $filename > $tmpfile
+    else
+        awk -F '\t' '{print $1"_"$2"_"$3"\t"$4"\t"$5"\t"$6}' $filename > $tmpfile
+    fi
+    cat $tmpfile > $filename
+
+
+    # sort data
+    head -n 1 $filename > $tmpfile
+    tail -n +2 $filename | sort -k1,1 -t $'\t' >> $tmpfile
+    cat $tmpfile > $filename
+    return 0
+}
+
