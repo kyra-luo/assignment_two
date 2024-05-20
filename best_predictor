@@ -13,7 +13,7 @@ fi
 input_file="$1"
 temp_file=$(mktemp)
 
-# Calculate the average of the specified column of the given file
+# Calculate the average of the specified column of the given file, will use it later.
 # args:
 #    filename: path to the file
 #    column: Which column needs to be average
@@ -24,3 +24,57 @@ function column_mean() {
     echo $mean
     return 0;
 }
+
+
+# Calculate the covariance relationship between two columns
+# Parameters:
+#   filename: path to the file
+#   column1: int
+#   column2: int
+function corr() {
+    local filename=$1;
+    local column1=$2;
+    local column2=$3;
+
+    # Calculate mean
+    local mean1=$(column_mean $filename $column1);
+    local mean2=$(column_mean $filename $column2);
+
+    # Calculate correlation
+    awk -F '\t' "{
+        dx = \$${column1} - ${mean1};
+        dy = \$${column2} - ${mean2};
+        sum_dx_dy += dx * dy;
+        sum_dx_square += dx * dx;
+        sum_dy_square += dy * dy;
+    }
+    END {
+            val = sum_dx_dy / sqrt(sum_dx_square * sum_dy_square);
+            print val;
+        }" $filename;
+    return 0;
+}
+
+# Calculate the correlation between each variable and score (call the corr function)
+# args:
+#    filename: path to data file
+cal_corr() {
+    filename=$1;
+
+    # index of each column
+    local cantril_score_index=8;
+    local gdp_index=4;
+    local population_index=5;
+    local homicide_index=6;
+    local life_index=7;
+
+    # corr score
+    local r_homicide=$(corr ${filename} ${cantril_score_index} ${homicide_index});
+    local r_gdp=$(corr ${filename} ${cantril_score_index} ${gdp_index});
+    local r_population=$(corr ${filename} ${cantril_score_index} ${population_index});
+    local r_life=$(corr ${filename} ${cantril_score_index} ${life_index});
+
+
+    echo -e "${r_homicide}\t${r_gdp}\t${r_population}\t${r_life}" >> $corrdata;
+}
+
