@@ -78,3 +78,22 @@ cal_corr() {
     echo -e "${r_homicide}\t${r_gdp}\t${r_population}\t${r_life}" >> $corrdata;
 }
 
+datafile=$1;
+# Calculate correlation for each countries
+country_code=$(awk -F '\t' '!seen[$2]++ {print $2}' $datafile);
+for code in $country_code;
+do
+    # Create temporary file
+    country_data_file=$(mktemp);
+
+    # Conditions for selecting a specific city; Delete empty rows
+    awk -F '\t' "(\$2 == \"${code}\")" $datafile | awk -F'\t' '$8 ~ /^\s*$/ {next} 1' > $country_data_file;
+
+    # Get the number rows
+    data_count=$(awk -F '\t' 'END {print NR}' $country_data_file);
+
+    # Calculate correlation if we have more than 3 data record
+    if [ $data_count -ge 3 ]; then
+        cal_corr $country_data_file;
+    fi
+done
