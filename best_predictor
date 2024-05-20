@@ -6,19 +6,21 @@
 
 # Check the input file
 if [ -z "$1" ]; then
-    echo "Please input the please! "
+    echo "Please input the file! "
     exit 1
 fi
 
 input_file="$1"
 temp_file=$(mktemp)
 
-# count each country's Cantril ladder score, if it is less than three, just delete it.
-awk -F'\t' 'NR>1 && $8 != "" {count[$1]++} END {for (country in count) {print country "\t" count[country]; if (count[country] >= 3) print country > "'"$temp_file"'"}}' "$input_file"
-
-echo -e "\n the number of each country Cantril ladder score："
-awk -F'\t' 'NR>1 && $8 != "" {count[$1]++} END {for (country in count) print country ": " count[country]}' "$input_file"
-
-# keeping those data in the temp_file
-awk -F'\t' 'NR==1 {print} NR>1 {while (getline < "'"$temp_file"'") countries[$1]=1} NR>1 && $1 in countries {print}' "$input_file"
-
+# Calculate the average of the specified column of the given file
+# args:
+#    filename: path to the file
+#    column: Which column needs to be average
+function column_mean() {
+    local filename=$1;
+    local column=$2;
+    local mean=$(awk -F '\t' "{sum += \$${column}; i++;} END {print sum/i}" $filename);
+    echo $mean
+    return 0;
+}
