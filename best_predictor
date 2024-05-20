@@ -1,16 +1,16 @@
-#! /bin/bash
+#!/usr/bin/env bash
 # CITS 4407 Assignment 2
 # Author Zishan Luo
 # Student ID 22448064
 
-
+input_file="$1"
 # Check the input file
-if [ -z "$1" ]; then
-    echo "Please input the file! "
+if [ ! -r "$input_file" ]; then
+    echo "Error: File '$input_file' does not exist or cannot be read."
     exit 1
 fi
 
-input_file="$1"
+
 temp_file=$(mktemp)
 
 # Calculate the average of the specified column of the given file, will use it later.
@@ -75,7 +75,7 @@ cal_corr() {
     local r_life=$(corr ${filename} ${cantril_score_index} ${life_index});
 
 
-    echo -e "${r_homicide}\t${r_gdp}\t${r_population}\t${r_life}" >> $corrdata;
+    echo -e "${r_homicide}\t${r_gdp}\t${r_population}\t${r_life}" >> $temp_file;
 }
 
 datafile=$1;
@@ -97,3 +97,57 @@ do
         cal_corr $country_data_file;
     fi
 done
+
+
+#  Calculate the mean value
+awk -F '\t' '{
+    sum_homicide += $1;
+    sum_gdp += $2;
+    sum_population += $3;
+    sum_life += $4;
+    count++;
+} END {
+    mean_homicide = sum_homicide/count;
+    mean_gdp = sum_gdp/count;
+    mean_population = sum_population/count;
+    mean_life_exp = sum_life/count;
+    printf "Mean correlation of Homicide Rate with Cantril ladder is %.3f\n", mean_homicide;
+    printf "Mean correlation of GDP with Cantril ladder is %.3f\n", mean_gdp;
+    printf "Mean correlation of Population with Cantril ladder is %.3f\n", mean_population;
+    printf "Mean correlation of Life Expectancy with Cantril ladder is %.3f\n", mean_life_exp;
+}' $temp_file;
+
+
+
+# Find the most predictive feature
+awk -F '\t' '{
+    sum_homicide += $1;
+    sum_gdp += $2;
+    sum_population += $3;
+    sum_life += $4;
+    count++;
+} END {
+    mean_homicide = sum_homicide/count;
+    mean_gdp = sum_gdp/count;
+    mean_population = sum_population/count;
+    mean_life_exp = sum_life/count;
+    printf "Homicide Rate\t%.3f\n", mean_homicide;
+    printf "GDP\t%.3f\n", mean_gdp;
+    printf "Population\t%.3f\n", mean_population;
+    printf "Life Expectancy\t%.3f\n", mean_life_exp;
+}' $temp_file |
+awk -F '\t' '{
+    if ($2 < 0) {
+      r = -$2;
+    } else {
+      r = $2;
+    }
+    if (r > maxValue) {
+      maxValue = r;
+      featurename = $1;
+    }
+  }
+  END {
+    printf "Most predictive mean correlation with the Cantril ladder is %s (r = %.3f)\n", featurename, maxValue
+  }'
+

@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/usr/bin/env bash
 # CITS 4407 Assignment 2
 # Author Zishan Luo
 # Student ID 22448064
@@ -105,7 +105,7 @@ for data in "$@"; do
     cp $data ${tmp};
 
     # clean data
-    run_clean ${tmp};
+    clean_data ${tmp};
 done
 
 
